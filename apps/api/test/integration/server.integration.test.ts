@@ -1,9 +1,10 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
-import { connect, createServer, type AddressInfo, type Socket } from 'node:net';
+import { request, type ClientRequest } from 'node:http';
+import { connect, createServer, type AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const apiRoot = resolve(import.meta.dirname, '../..');
 const LISTEN_DEADLINE_MS = 15_000;
@@ -44,7 +45,7 @@ interface ApiProcess {
 }
 
 const running: ChildProcess[] = [];
-const sockets: Socket[] = [];
+const heldRequests: ClientRequest[] = [];
 
 const startApi = async (env: Record<string, string> = {}): Promise<ApiProcess> => {
   const port = await findFreePort();
@@ -113,13 +114,28 @@ const waitUntilListening = async (api: ApiProcess): Promise<void> => {
   throw new Error(`API never listened on port ${String(api.port)}`);
 };
 
-const holdRequestOpen = async (port: number): Promise<Socket> => {
-  const socket = connect(port, '127.0.0.1');
-  socket.on('error', () => undefined);
-  sockets.push(socket);
-  await once(socket, 'connect');
-  socket.write('GET /health/live HTTP/1.1\r\nHost: localhost\r\n');
-  return socket;
+const holdRequestOpen = async (port: number): Promise<ClientRequest> => {
+  // An incomplete header can still be treated as idle and closed by server.close().
+  // Wait for HTTP acknowledgement, then leave the JSON body incomplete instead.
+  const held = request({
+    hostname: '127.0.0.1',
+    port,
+    path: '/health/live',
+    method: 'POST',
+    agent: false,
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': '2',
+      Expect: '100-continue',
+    },
+  });
+  held.on('error', () => undefined);
+  heldRequests.push(held);
+  const acknowledged = once(held, 'continue', { signal: AbortSignal.timeout(5_000) });
+  held.flushHeaders();
+  await acknowledged;
+  held.write('{');
+  return held;
 };
 
 const stepsDone = (api: ApiProcess): unknown[] =>
@@ -133,7 +149,7 @@ const eventsNamed = (api: ApiProcess, event: string): LogRecord[] =>
 
 describe('API process lifecycle', () => {
   afterEach(() => {
-    for (const socket of sockets.splice(0)) socket.destroy();
+    for (const request of heldRequests.splice(0)) request.destroy();
     for (const child of running.splice(0)) {
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
     }
@@ -159,9 +175,13 @@ describe('API process lifecycle', () => {
     const held = await holdRequestOpen(api.port);
 
     api.child.kill('SIGTERM');
-    await new Promise((wait) => setTimeout(wait, 50));
+    await vi.waitFor(() => {
+      expect(eventsNamed(api, 'shutdown_signal_received')).toHaveLength(1);
+    });
     api.child.kill('SIGTERM');
-    await new Promise((wait) => setTimeout(wait, 200));
+    await vi.waitFor(() => {
+      expect(eventsNamed(api, 'prevent_duplicate_shutdown')).toHaveLength(1);
+    });
     held.destroy();
 
     expect(await api.exited).toBe(0);
@@ -189,9 +209,9 @@ describe('API process lifecycle', () => {
     await holdRequestOpen(api.port);
 
     api.child.kill('SIGTERM');
-    await new Promise((wait) => setTimeout(wait, 300));
-
-    expect(await canConnect(api.port)).toBe(false);
+    await vi.waitFor(async () => {
+      expect(await canConnect(api.port)).toBe(false);
+    });
   });
 
   it('force-exits with code 1 at the deadline when a request never finishes', async () => {
@@ -237,9 +257,13 @@ describe('API process lifecycle', () => {
     const held = await holdRequestOpen(api.port);
 
     api.child.kill('SIGTERM');
-    await new Promise((wait) => setTimeout(wait, 300));
+    await vi.waitFor(() => {
+      expect(eventsNamed(api, 'shutdown_signal_received')).toHaveLength(1);
+    });
     api.child.kill('SIGUSR2');
-    await new Promise((wait) => setTimeout(wait, 300));
+    await vi.waitFor(() => {
+      expect(eventsNamed(api, 'uncaught_exception')).toHaveLength(1);
+    });
     held.destroy();
 
     expect(await api.exited).toBe(1);
