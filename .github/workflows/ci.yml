@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Scan for secrets
+        run: |
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            --mount "type=bind,src=$PWD,dst=/repo,readonly" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git /repo --config /repo/.gitleaks.toml --redact --no-banner --log-opts=--all
+
+  quality:
+    name: Format, lint, types, API contract, unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Node and pnpm
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          version: 12.16.1
+          runtime: node@24.22.2
+          cache: true
+          install: false
+      - name: Verify toolchain
+        run: |
+          test "$(node --version)" = "v$(cat .nvmrc)"
+          test "$(pnpm --version)" = "12.16.1"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Create local environment files
+        run: pnpm env:setup
+      - name: Run quality checks
+        run: pnpm check
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
+
+  integration:
+    name: PostgreSQL, Redis, build and process smoke test
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Node and pnpm
+        uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
+        with:
+          version: 12.16.1
+          runtime: node@24.22.2
+          cache: true
+          install: false
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Create local environment files
+        run: pnpm env:setup
+      - name: Start test services, migrate and run integration tests
+        run: pnpm test:integration
+      - name: Build
+        run: pnpm build
+      - name: Install production dependencies only
+        run: pnpm install --prod --frozen-lockfile
+      - name: Smoke-test production installation
+        run: node scripts/smoke.mjs
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yml --env-file .env.test logs --no-color
+      - name: Stop test services
+        if: always()
+        run: docker compose -f docker-compose.test.yml --env-file .env.test down

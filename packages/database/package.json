@@ -1,0 +1,31 @@
+{
+  "name": "@starter/database",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PostgreSQL pool, health query, and migrations",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@starter/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --root ../.. --passWithNoTests packages/database/",
+    "migrate:create": "node node_modules/node-pg-migrate/bin/node-pg-migrate.js create --migrations-dir migrations --migration-file-language sql --migration-filename-format utc",
+    "migrate:up": "node --env-file-if-exists=../../.env node_modules/node-pg-migrate/bin/node-pg-migrate.js up --migrations-dir migrations --migrations-table schema_migrations --advisory-lock-mode fail --single-transaction --check-order --no-verbose",
+    "migrate:dry-run": "node --env-file-if-exists=../../.env node_modules/node-pg-migrate/bin/node-pg-migrate.js up --migrations-dir migrations --migrations-table schema_migrations --advisory-lock-mode fail --single-transaction --check-order --dry-run --no-verbose",
+    "migrate:test:up": "node --env-file-if-exists=../../.env.test scripts/migrate-test.mjs"
+  },
+  "dependencies": {
+    "node-pg-migrate": "9.0.0",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

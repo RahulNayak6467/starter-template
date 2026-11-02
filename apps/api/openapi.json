@@ -1,0 +1,232 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Starter API",
+    "version": "0.1.0",
+    "description": "Example API for a TypeScript monorepo with PostgreSQL and Redis."
+  },
+  "tags": [
+    {
+      "name": "health",
+      "description": "Liveness and readiness probes"
+    }
+  ],
+  "paths": {
+    "/health/live": {
+      "get": {
+        "operationId": "getLiveness",
+        "tags": ["health"],
+        "summary": "Liveness probe",
+        "description": "Checks no dependencies: a database outage must not restart the API.",
+        "responses": {
+          "200": {
+            "description": "The process is alive.",
+            "headers": {
+              "x-request-id": {
+                "description": "ID of this request; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "Probe answers are never cached.",
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-store"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error. The body never contains internal details.",
+            "headers": {
+              "x-request-id": {
+                "description": "ID of this request; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "tags": ["health"],
+        "summary": "Readiness probe",
+        "description": "One public 503 body for every reason; the reason is only logged.",
+        "responses": {
+          "200": {
+            "description": "Ready to serve traffic.",
+            "headers": {
+              "x-request-id": {
+                "description": "ID of this request; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "Probe answers are never cached.",
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-store"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadyResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error. The body never contains internal details.",
+            "headers": {
+              "x-request-id": {
+                "description": "ID of this request; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Not ready: draining, or PostgreSQL or Redis is unavailable.",
+            "headers": {
+              "x-request-id": {
+                "description": "ID of this request; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "description": "Probe answers are never cached.",
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-store"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotReadyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LiveResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        },
+        "required": ["status"],
+        "additionalProperties": false,
+        "description": "The process is up and serving HTTP."
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requestId": {
+                "type": ["string", "null"]
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether the same request may succeed if retried later."
+              },
+              "issues": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["path", "message"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["code", "message", "requestId", "retryable"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false,
+        "description": "Every error response. `issues` is present only for request validation errors."
+      },
+      "ReadyResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ready"
+          }
+        },
+        "required": ["status"],
+        "additionalProperties": false,
+        "description": "The API can serve traffic."
+      },
+      "NotReadyResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "not_ready"
+          }
+        },
+        "required": ["status"],
+        "additionalProperties": false,
+        "description": "The API should not receive traffic: it is draining or PostgreSQL or Redis is down."
+      }
+    }
+  }
+}

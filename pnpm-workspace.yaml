@@ -1,0 +1,19 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+saveExact: true
+
+catalog:
+  zod: 4.6.7
+
+allowBuilds:
+  esbuild: false
+  simple-git-hooks: false
+
+# node-pg-migrate 9 pins an older glob line. Keep its file matching dependencies patched.
+# https://github.com/advisories/GHSA-3g3m-2fjr-6pw4
+# https://github.com/advisories/GHSA-g3hv-75wg-m249
+overrides:
+  'node-pg-migrate>glob': 14.0.2
+  'glob@14.0.2>minimatch': 11.0.1

@@ -1,0 +1,24 @@
+{
+  "name": "@starter/redis",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Redis client with fail-fast defaults, lifecycle logging, and bounded close",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@starter/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --root ../.. --passWithNoTests packages/redis/"
+  },
+  "dependencies": {
+    "@starter/shared": "workspace:*",
+    "ioredis": "5.11.1"
+  }
+}

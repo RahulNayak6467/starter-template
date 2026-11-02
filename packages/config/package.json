@@ -1,0 +1,23 @@
+{
+  "name": "@starter/config",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Environment loader and reusable env schema fragments",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@starter/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --root ../.. --passWithNoTests packages/config/"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  }
+}

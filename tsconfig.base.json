@@ -1,0 +1,36 @@
+{
+  // Shared compiler options. Every workspace's tsconfig.json extends this file.
+  "compilerOptions": {
+    // Compile against JavaScript features supported by the selected Node LTS line.
+    "target": "ES2024",
+    "lib": ["ES2024"],
+
+    // Match the module rules Node uses when it runs the emitted JavaScript.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    // Workspace packages export two entry points (see each package's "exports"):
+    // "@starter/source" → src/*.ts, otherwise → dist/*.js. Typechecking, tests,
+    // and dev runs use the source condition, so no build step is needed during
+    // development. tsconfig.build.json clears it so builds use compiled output.
+    "customConditions": ["@starter/source"],
+
+    // Catch unsafe assumptions instead of allowing them to reach production.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUncheckedSideEffectImports": true,
+
+    // Include only the global types intentionally used by the code.
+    "types": ["node"],
+    "forceConsistentCasingInFileNames": true,
+    // Don't typecheck third-party .d.ts files; their errors aren't ours to fix.
+    "skipLibCheck": true
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "name": "starter-template-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TypeScript monorepo starter with Express, PostgreSQL and Redis",
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=24.22.2 <25",
+    "pnpm": "12.16.1"
+  },
+  "scripts": {
+    "env:setup": "node scripts/setup.mjs",
+    "dev": "pnpm --filter @starter/api dev",
+    "start": "pnpm --filter @starter/api start",
+    "build": "pnpm -r run build",
+    "clean": "pnpm -r run clean",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm test:stack && pnpm test:tooling && vitest run",
+    "test:unit": "pnpm test:tooling && vitest run --project unit",
+    "test:tooling": "node --test scripts/*.test.mjs",
+    "test:integration": "pnpm test:stack && vitest run --project integration",
+    "test:watch": "vitest --project unit",
+    "services:up": "docker compose --env-file .env up -d --wait",
+    "services:down": "docker compose --env-file .env down",
+    "test:stack": "pnpm env:setup && docker compose -f docker-compose.test.yml --env-file .env.test up -d --wait && pnpm db:migrate:test",
+    "test:stack:down": "docker compose -f docker-compose.test.yml --env-file .env.test down",
+    "test:smoke": "node scripts/smoke.mjs",
+    "db:migrate": "pnpm --filter @starter/database migrate:up",
+    "db:migrate:create": "pnpm --filter @starter/database migrate:create",
+    "db:migrate:dry-run": "pnpm --filter @starter/database migrate:dry-run",
+    "db:migrate:test": "pnpm --filter @starter/database migrate:test:up",
+    "openapi:generate": "pnpm --filter @starter/api openapi:generate",
+    "openapi:check": "pnpm --filter @starter/api openapi:check",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm openapi:check && pnpm test:unit",
+    "validate": "pnpm check && pnpm test:integration && pnpm build && pnpm test:smoke",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec lint-staged"
+  },
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown",
+    "*.{ts,js,mjs}": "eslint --max-warnings 0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.19.2",
+    "eslint": "10.14.0",
+    "lint-staged": "17.6.0",
+    "prettier": "3.9.10",
+    "simple-git-hooks": "2.14.0",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}
